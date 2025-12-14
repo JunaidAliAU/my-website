@@ -10,7 +10,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>My First CI/CD Website</title>
+        <h1>🚀 CI/CD Pipeline SUCCESSFULLY Deployed!</h1>
         <style>
             body {{ 
                 font-family: Arial; 
