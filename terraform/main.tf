@@ -1,7 +1,7 @@
 # main.tf - Working Configuration with Amazon Linux 2
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-west-2"
 }
 
 # Generate SSH Key
