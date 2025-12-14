@@ -1,31 +1,35 @@
-# main.tf - Main Terraform configuration
+# main.tf - Working Configuration with Amazon Linux 2
 
 provider "aws" {
   region = "us-east-1"
 }
 
-# Create SSH Key Pair
+# Generate SSH Key
 resource "tls_private_key" "flask_key" {
   algorithm = "RSA"
-  rsa_bits  = 4096
+  rsa_bits  = 2048
 }
 
+# Create AWS Key Pair
 resource "aws_key_pair" "deployer_key" {
   key_name   = "terraform-flask-key"
   public_key = tls_private_key.flask_key.public_key_openssh
+  
+  lifecycle {
+    ignore_changes = [key_name]
+  }
 }
 
 # Save private key locally
 resource "local_file" "private_key" {
   content  = tls_private_key.flask_key.private_key_pem
   filename = "${path.module}/terraform-key.pem"
-  file_permission = "0400"
 }
 
-# Create Security Group
+# Security Group
 resource "aws_security_group" "flask_sg" {
-  name        = "terraform-flask-sg"
-  description = "Allow HTTP and SSH traffic"
+  name        = "flask-app-sg"
+  description = "Allow HTTP and SSH"
 
   ingress {
     description = "HTTP"
@@ -51,34 +55,39 @@ resource "aws_security_group" "flask_sg" {
   }
 }
 
-# Create EC2 Instance
+# EC2 Instance - Amazon Linux 2 (100% Free Tier compatible)
 resource "aws_instance" "flask_server" {
-  ami = "ami-0c55b159cbfafe1f0"  # Ubuntu 20.04 LTS (Free Tier eligible)
-  instance_type = "t3.micro"  
-  key_name               = aws_key_pair.deployer_key.key_name
+  ami           = "ami-0cff7528ff583bf9a"  # Amazon Linux 2 AMI - Free Tier eligible
+  instance_type = "t2.micro"               # Free Tier eligible
+  
+  key_name      = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
   
   tags = {
-    Name = "Terraform-Flask-Server"
+    Name    = "Flask-App-Terraform"
     Project = "CI-CD-Pipeline"
   }
 
-  # Install Docker on instance startup
+  # Install Docker on startup
   user_data = <<-EOF
               #!/bin/bash
-              apt-get update
-              apt-get install -y docker.io
-              systemctl start docker
-              systemctl enable docker
-              usermod -aG docker ubuntu
+              sudo yum update -y
+              sudo yum install docker -y
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker ec2-user
               EOF
 }
 
-# Output the public IP
-output "instance_public_ip" {
+# Output values
+output "instance_ip" {
   value = aws_instance.flask_server.public_ip
 }
 
-output "ssh_private_key_path" {
-  value = local_file.private_key.filename
+output "ssh_command" {
+  value = "ssh -i terraform-key.pem ec2-user@${aws_instance.flask_server.public_ip}"
+}
+
+output "website_url" {
+  value = "http://${aws_instance.flask_server.public_ip}"
 }
