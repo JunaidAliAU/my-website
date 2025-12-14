@@ -1,23 +1,18 @@
-# main.tf - Working Configuration with Amazon Linux 2
+# main.tf - Updated for Amazon Linux 2023 and t3.micro
 
 provider "aws" {
-  region = "ap-south-1"
+  region = "us-east-1"
 }
 
-# Generate SSH Key
+# Create SSH Key Pair (same as you created manually)
 resource "tls_private_key" "flask_key" {
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
-# Create AWS Key Pair
 resource "aws_key_pair" "deployer_key" {
-  key_name   = "terraform-flask-key"
+  key_name   = "manual-key"  # Same name as you created
   public_key = tls_private_key.flask_key.public_key_openssh
-  
-  lifecycle {
-    ignore_changes = [key_name]
-  }
 }
 
 # Save private key locally
@@ -28,8 +23,8 @@ resource "local_file" "private_key" {
 
 # Security Group
 resource "aws_security_group" "flask_sg" {
-  name        = "flask-app-sg"
-  description = "Allow HTTP and SSH"
+  name        = "terraform-flask-sg"
+  description = "Allow HTTP and SSH traffic"
 
   ingress {
     description = "HTTP"
@@ -53,12 +48,16 @@ resource "aws_security_group" "flask_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "flask-app-security-group"
+  }
 }
 
-# EC2 Instance - Amazon Linux 2 (100% Free Tier compatible)
+# EC2 Instance - Using your selected AMI and instance type
 resource "aws_instance" "flask_server" {
-  ami           = "ami-0f5ee92e2d63afc18"  # Amazon Linux 2 AMI - Free Tier eligible
-  instance_type = "t4g.small  "               # Free Tier eligible
+  ami           = "ami-068c0051b15cdb816"  # Amazon Linux 2023 Kernel 6.1
+  instance_type = "t3.micro"               # t3.micro (not free tier)
   
   key_name      = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
@@ -66,13 +65,14 @@ resource "aws_instance" "flask_server" {
   tags = {
     Name    = "Flask-App-Terraform"
     Project = "CI-CD-Pipeline"
+    AMI     = "Amazon-Linux-2023"
   }
 
-  # Install Docker on startup
+  # Install Docker on Amazon Linux 2023
   user_data = <<-EOF
               #!/bin/bash
-              sudo yum update -y
-              sudo yum install docker -y
+              sudo dnf update -y
+              sudo dnf install docker -y
               sudo systemctl start docker
               sudo systemctl enable docker
               sudo usermod -aG docker ec2-user
@@ -80,14 +80,18 @@ resource "aws_instance" "flask_server" {
 }
 
 # Output values
-output "instance_ip" {
+output "instance_public_ip" {
   value = aws_instance.flask_server.public_ip
 }
 
-output "ssh_command" {
+output "ssh_connection" {
   value = "ssh -i terraform-key.pem ec2-user@${aws_instance.flask_server.public_ip}"
 }
 
 output "website_url" {
   value = "http://${aws_instance.flask_server.public_ip}"
+}
+
+output "cost_note" {
+  value = "Note: t3.micro instance costs approx $0.0104 per hour (not free tier)"
 }
