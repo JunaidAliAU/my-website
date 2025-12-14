@@ -53,7 +53,7 @@ resource "aws_security_group" "flask_sg" {
 
 # Create EC2 Instance
 resource "aws_instance" "flask_server" {
-  ami                    = "ami-053b0d53c279acc90"  # Ubuntu 22.04 LTS
+  ami = "ami-0c55b159cbfafe1f0"  # Ubuntu 20.04 LTS (Free Tier eligible)
   instance_type          = "t2.micro"
   key_name               = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
