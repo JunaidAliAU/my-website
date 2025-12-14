@@ -6,3 +6,4 @@ This project demonstrates a complete CI/CD pipeline:
 - Automatic Docker image building on every commit
 - Deployment to AWS EC2
 - Infrastructure managed by Terraform
+- "Testing Docker Hub fix"
