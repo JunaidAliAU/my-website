@@ -57,8 +57,8 @@ resource "aws_security_group" "flask_sg" {
 
 # EC2 Instance - Amazon Linux 2 (100% Free Tier compatible)
 resource "aws_instance" "flask_server" {
-  ami           = "ami-0cff7528ff583bf9a"  # Amazon Linux 2 AMI - Free Tier eligible
-  instance_type = "t3.micro"               # Free Tier eligible
+  ami           = "ami-0f5ee92e2d63afc18"  # Amazon Linux 2 AMI - Free Tier eligible
+  instance_type = "t4g.small  "               # Free Tier eligible
   
   key_name      = aws_key_pair.deployer_key.key_name
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
