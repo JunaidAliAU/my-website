@@ -1,93 +1,57 @@
-# main.tf - Working Configuration with Amazon Linux 2
+# terraform/main.tf - Perfect alignment with existing instance
 
 provider "aws" {
   region = "us-east-1"
 }
 
-# Generate SSH Key
-resource "tls_private_key" "flask_key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
+# Existing Key Pair (jo aap ne manually banaya)
+resource "aws_key_pair" "existing_key" {
+  key_name   = "manual-key"  # ✅ Aap ka key pair name
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCu7YqTZZZDdxYr359LTaGKxgJpiEX6GNi6eZko0ke3G/4DM9FHwsckMq0aaaGovZdvpZo/EF3be4z7eFZyKQXcWssDLJWn9gZRpd7LpKbfIHhfbqgVLzBAJIZuL5nNQ2gktJboiT+9Cwu9A7o7IGzeZLJoXU+w02ew9lRyxBsoBzBFaPaX9e3eLCbyb/A2/q7ekycAVPYFJCxEb5EdN7OW6e4heKcQ+l8Iw25ozBFFN3VJ2G/x3eS5bjl3oklQj2zvBiUl4EhMsFI2KyP0dHtKBoAuBsdsdQGQAkGbZ2c7AtYgGp5Q9WUoDwVF7uQ/JXAExxoK8pEPVl2NQDb0MA4D"  # ✅ Aap ki public key
 }
 
-# Create AWS Key Pair
-resource "aws_key_pair" "deployer_key" {
-  key_name   = "terraform-flask-key"
-  public_key = tls_private_key.flask_key.public_key_openssh
+# Existing Security Group
+resource "aws_security_group" "existing_sg" {
+  name        = "launch-wizard-1"  # ✅ Existing security group name
+  description = "Existing security group for Flask app"
   
-  lifecycle {
-    ignore_changes = [key_name]
-  }
+  # Rules automatically match karenge existing se
 }
 
-# Save private key locally
-resource "local_file" "private_key" {
-  content  = tls_private_key.flask_key.private_key_pem
-  filename = "${path.module}/terraform-key.pem"
-}
-
-# Security Group
-resource "aws_security_group" "flask_sg" {
-  name        = "flask-app-sg"
-  description = "Allow HTTP and SSH"
-
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-# EC2 Instance - Amazon Linux 2 (100% Free Tier compatible)
+# Manage Existing EC2 Instance
 resource "aws_instance" "flask_server" {
-  ami           = "ami-0cff7528ff583bf9a"  # Amazon Linux 2 AMI - Free Tier eligible
-  instance_type = "t2.micro"               # Free Tier eligible
+  # ✅ EXACTLY same as your running instance
+  ami           = "ami-068c0051b15cdb816"  # Amazon Linux 2023
+  instance_type = "t3.micro"               # t3.micro
   
-  key_name      = aws_key_pair.deployer_key.key_name
-  vpc_security_group_ids = [aws_security_group.flask_sg.id]
+  # ✅ Existing key pair
+  key_name = aws_key_pair.existing_key.key_name
+  
+  # ✅ Existing security group
+  vpc_security_group_ids = [aws_security_group.existing_sg.id]
+  
+  # ✅ Same subnet
+  subnet_id = "subnet-0d9a3621e13007d17"
   
   tags = {
     Name    = "Flask-App-Terraform"
     Project = "CI-CD-Pipeline"
+    Managed = "Terraform"
   }
-
-  # Install Docker on startup
-  user_data = <<-EOF
-              #!/bin/bash
-              sudo yum update -y
-              sudo yum install docker -y
-              sudo systemctl start docker
-              sudo systemctl enable docker
-              sudo usermod -aG docker ec2-user
-              EOF
 }
 
-# Output values
-output "instance_ip" {
+# Outputs
+output "instance_public_ip" {
   value = aws_instance.flask_server.public_ip
-}
-
-output "ssh_command" {
-  value = "ssh -i terraform-key.pem ec2-user@${aws_instance.flask_server.public_ip}"
+  description = "Public IP address of the instance"
 }
 
 output "website_url" {
   value = "http://${aws_instance.flask_server.public_ip}"
+  description = "URL to access the Flask website"
+}
+
+output "ssh_command" {
+  value = "ssh -i manual-key.pem ec2-user@${aws_instance.flask_server.public_ip}"
+  description = "SSH command to connect to instance"
 }
