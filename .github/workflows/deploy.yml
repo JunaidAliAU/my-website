@@ -1,6 +1,14 @@
 name: CI/CD Pipeline for Flask App
 
-on:
+on:    # Add this step before "Deploy to AWS EC2"
+    - name: Verify SSH Key
+      run: |
+        echo "Checking SSH key..."
+        mkdir -p ~/.ssh
+        echo "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/key.pem
+        chmod 600 ~/.ssh/key.pem
+        ls -la ~/.ssh/key.pem
+        head -2 ~/.ssh/key.pem
   push:
     branches: [ main ]
   pull_request:
