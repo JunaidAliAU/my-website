@@ -31,7 +31,7 @@ def home():
     </head>
     <body>
         <div class="box">
-            <h1>✅ My First CI/CD Pipeline Project!</h1>
+            <h1>✅ Myv CI/CD Pipeline Project!</h1>
             <p>This website is auto-deployed from GitHub.</p>
             <p>Server Time: <strong>{current_time}</strong></p>
             <p class="success">Every commit will build a new Docker image and deploy to AWS!</p>
