@@ -1,14 +1,6 @@
 name: CI/CD Pipeline for Flask App
 
-on:    # Add this step before "Deploy to AWS EC2"
-    - name: Verify SSH Key
-      run: |
-        echo "Checking SSH key..."
-        mkdir -p ~/.ssh
-        echo "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/key.pem
-        chmod 600 ~/.ssh/key.pem
-        ls -la ~/.ssh/key.pem
-        head -2 ~/.ssh/key.pem
+on:
   push:
     branches: [ main ]
   pull_request:
@@ -23,41 +15,104 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
     
-    # Step 2: Login to Docker Hub
+    # Step 2: Debug - Verify SSH Key
+    - name: Verify SSH Key
+      run: |
+        echo "🔧 Checking SSH key setup..."
+        mkdir -p ~/.ssh
+        echo "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/key.pem
+        chmod 600 ~/.ssh/key.pem
+        echo "📄 Key file created. Checking format:"
+        head -2 ~/.ssh/key.pem
+        echo "📏 Key length: $(wc -l < ~/.ssh/key.pem) lines"
+    
+    # Step 3: Debug - Test SSH Connection
+    - name: Test SSH Connection
+      run: |
+        echo "🔍 Testing connection to EC2..."
+        echo "Host: ${{ secrets.AWS_EC2_HOST }}"
+        echo "User: ${{ secrets.AWS_EC2_USER }}"
+        
+        # Create SSH config
+        cat > ~/.ssh/config << EOF
+        Host flask-ec2
+          HostName ${{ secrets.AWS_EC2_HOST }}
+          User ${{ secrets.AWS_EC2_USER }}
+          IdentityFile ~/.ssh/key.pem
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+          ConnectTimeout 30
+        EOF
+        
+        # Test basic connection
+        timeout 10 ssh -v -i ~/.ssh/key.pem \
+          ${{ secrets.AWS_EC2_USER }}@${{ secrets.AWS_EC2_HOST }} \
+          "echo 'SSH connection successful'" || \
+          echo "SSH test failed, continuing..."
+    
+    # Step 4: Login to Docker Hub
     - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
     
-    # Step 3: Build Docker image
+    # Step 5: Build Docker image
     - name: Build Docker image
       run: |
         docker build -t ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest .
     
-    # Step 4: Push to Docker Hub
+    # Step 6: Push Docker image
     - name: Push Docker image
       run: |
         docker push ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
     
-    # Step 5: Deploy to AWS EC2
+    # Step 7: Deploy to AWS EC2
     - name: Deploy to AWS EC2
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.AWS_EC2_HOST }}
         username: ${{ secrets.AWS_EC2_USER }}
         key: ${{ secrets.AWS_SSH_KEY }}
+        port: 22
+        timeout: 60s
+        script_timeout: 120s
         script: |
-          # Stop old container
-          docker stop flask-app || true
-          docker rm flask-app || true
+          echo "🚀 Starting deployment on EC2..."
           
-          # Pull new image
+          # 1. Stop and remove old container
+          echo "🛑 Stopping old container..."
+          docker stop flask-app 2>/dev/null || echo "No container to stop"
+          docker rm flask-app 2>/dev/null || echo "No container to remove"
+          
+          # 2. Pull latest image
+          echo "📥 Pulling latest Docker image..."
           docker pull ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
           
-          # Run new container
+          # 3. Run new container
+          echo "🐳 Starting new container..."
           docker run -d \
             --name flask-app \
             -p 80:5000 \
-            --restart always \
+            --restart unless-stopped \
             ${{ secrets.DOCKER_USERNAME }}/my-flask-app:latest
+          
+          # 4. Verify deployment
+          echo "✅ Deployment completed!"
+          echo "📊 Container status:"
+          docker ps
+          echo "📝 Container logs (last 10 lines):"
+          docker logs --tail 10 flask-app
+          
+          # 5. Check website
+          echo "🌐 Testing website..."
+          sleep 5
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost || \
+            echo "⚠️ Website not responding yet"
+    
+    # Step 8: Final status
+    - name: Deployment Status
+      run: |
+        echo "🎉 CI/CD Pipeline Completed!"
+        echo "🌍 Website URL: http://${{ secrets.AWS_EC2_HOST }}"
+        echo "📅 Timestamp: $(date)"
